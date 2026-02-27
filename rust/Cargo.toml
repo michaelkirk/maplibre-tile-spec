@@ -77,3 +77,8 @@ missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 multiple_crate_versions = "allow"
 too_many_lines = "allow"
+
+# DO NOT MERGE
+[patch.crates-io]
+geo = { git = "https://github.com/georust/geo", branch = "mkirk/earcutr-cleanup" }
+geo-types = { git = "https://github.com/georust/geo", branch = "mkirk/earcutr-cleanup" }

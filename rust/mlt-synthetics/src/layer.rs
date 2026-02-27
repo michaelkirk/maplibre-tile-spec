@@ -6,7 +6,7 @@ use std::path::Path;
 use std::{fs, io};
 
 use geo::{Convert as _, TriangulateEarcut as _};
-use geo_types::{LineString, Polygon};
+use geo_types::Polygon;
 use mlt_core::geojson::{FeatureCollection, Geom32};
 use mlt_core::v01::{
     DecodedGeometry, DecodedId, DecodedProperty, Encoder, GeometryEncoder, IdEncoder,
@@ -25,38 +25,11 @@ fn tessellate_polygon(polygon: &Polygon<i32>) -> (Vec<u32>, u32) {
     let raw = polygon_f64.earcut_triangles_raw();
     let num_triangles = u32::try_from(raw.triangle_indices.len() / 3).expect("too many triangles");
 
-    // Build remap: geo index -> MLT index (closing vertex of each ring -> ring start).
-    let mut geo_to_mlt = Vec::with_capacity(raw.vertices.len() / 2);
-    let mut mlt_offset = 0;
-
-    let mut push_ring = |ring: &LineString<i32>| {
-        let len = ring.0.len();
-        let mlt_len = if len > 1 && ring.0.first() == ring.0.last() {
-            len - 1
-        } else {
-            len
-        };
-        for i in 0..len {
-            geo_to_mlt.push(if i == len - 1 && mlt_len < len {
-                mlt_offset
-            } else {
-                mlt_offset + i
-            });
-        }
-        mlt_offset += mlt_len;
-    };
-
-    push_ring(polygon.exterior());
-    for interior in polygon.interiors() {
-        push_ring(interior);
-    }
-
     let indices_u32: Vec<u32> = raw
         .triangle_indices
         .into_iter()
         .map(|i| {
-            let mlt_idx = geo_to_mlt.get(i).copied().unwrap_or(i);
-            u32::try_from(mlt_idx).expect("index overflow")
+            u32::try_from(i).expect("index overflow")
         })
         .collect();
 
