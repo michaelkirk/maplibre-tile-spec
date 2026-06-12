@@ -434,6 +434,11 @@ pub struct AltSession<'a> {
 }
 
 impl AltSession<'_> {
+    /// The configuration of the underlying encoder, for gating candidate encodings.
+    pub(crate) fn cfg(&self) -> &EncoderConfig {
+        &self.enc.cfg
+    }
+
     /// Encode one candidate.
     ///
     /// - **`Ok`** — commits the candidate; replaces the running best if shorter.

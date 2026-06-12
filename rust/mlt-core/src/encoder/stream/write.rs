@@ -103,7 +103,7 @@ impl PhysicalCodecs {
         stream_type: StreamType,
     ) -> MltResult<()> {
         use PhysicalEncoding as PE;
-        if P::FASTPFOR_ALLOWED {
+        if P::FASTPFOR_ALLOWED && alt.cfg().allow_fpf {
             alt.with(|enc| {
                 let meta = StreamMeta::new2(stream_type, logical, PE::FastPFor256, values.len())?;
                 write_stream_payload(&mut enc.data, meta, false, P::fastpfor(self, values)?)
