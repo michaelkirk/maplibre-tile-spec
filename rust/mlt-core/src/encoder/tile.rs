@@ -125,27 +125,22 @@ fn build_scalar_column(
 
     // Presence is precomputed before sort trials; this pass only gathers values
     // in the selected row order.
+    //
+    // All-present columns are routed through the optional variants so a
+    // presence stream is always emitted, even when no value is null.
     macro_rules! scalar_col {
         ($opt_ctor:ident, $non_opt_ctor:ident, $ty:ty, $sv:ident) => {{
             Some(match presence {
                 Presence::AllNull => unreachable!("handled before variant dispatch"),
-                Presence::AllPresent => StagedProperty::$non_opt_ctor(
-                    name,
-                    features
-                        .iter()
-                        .map(|f| match f.properties.get(col) {
-                            Some(PropValue::$sv(Some(v))) => *v,
-                            _ => unreachable!("analysis guarantees present typed values"),
-                        })
-                        .collect(),
-                ),
-                Presence::Mixed | Presence::SameAsProp(_) => StagedProperty::$opt_ctor(
-                    name,
-                    features.iter().map(|f| match f.properties.get(col) {
-                        Some(PropValue::$sv(v)) => *v,
-                        _ => None,
-                    }),
-                ),
+                Presence::AllPresent | Presence::Mixed | Presence::SameAsProp(_) => {
+                    StagedProperty::$opt_ctor(
+                        name,
+                        features.iter().map(|f| match f.properties.get(col) {
+                            Some(PropValue::$sv(v)) => *v,
+                            _ => None,
+                        }),
+                    )
+                }
             })
         }};
     }
@@ -162,24 +157,17 @@ fn build_scalar_column(
         Some(PropValue::F64(_)) => scalar_col!(opt_f64, f64, f64, F64),
         Some(PropValue::Str(_)) | None => Some(match presence {
             Presence::AllNull => unreachable!("handled before variant dispatch"),
-            Presence::AllPresent => StagedProperty::str(
-                name,
-                features
-                    .iter_mut()
-                    .map(|f| match f.properties.get_mut(col) {
-                        Some(PropValue::Str(Some(v))) => std::mem::take(v),
-                        _ => unreachable!("analysis guarantees present string values"),
-                    }),
-            ),
-            Presence::Mixed | Presence::SameAsProp(_) => StagedProperty::opt_str(
-                name,
-                features
-                    .iter_mut()
-                    .map(|f| match f.properties.get_mut(col) {
-                        Some(PropValue::Str(v)) => v.take(),
-                        _ => None,
-                    }),
-            ),
+            Presence::AllPresent | Presence::Mixed | Presence::SameAsProp(_) => {
+                StagedProperty::opt_str(
+                    name,
+                    features
+                        .iter_mut()
+                        .map(|f| match f.properties.get_mut(col) {
+                            Some(PropValue::Str(v)) => v.take(),
+                            _ => None,
+                        }),
+                )
+            }
         }),
     }
 }
@@ -203,7 +191,12 @@ fn build_shared_dict(
                 _ => None,
             })
             .collect();
-        let presence = analysis.properties[col_idx].presence;
+        // Report all-present columns as Mixed so `StagedSharedDict::new` sets
+        // `has_presence` and a presence stream is always emitted.
+        let presence = match analysis.properties[col_idx].presence {
+            Presence::AllPresent => Presence::Mixed,
+            p => p,
+        };
         (suffix, values, presence)
     });
 
